@@ -1,20 +1,7 @@
 #!/bin/bash
 
 # ---------------------------------------------------------------------------------------
-# little script to ask protonVPN API for the fastest server
-# ---
-#
-# ## want to include ##
-# - argument for number of results
-# - argument for country to check
-# - check for fastest country
-# - check a specific server
-#
-# 
-# TODO 
-# - check if country even is available on pvpn
-# - select country
-# - list number of results
+#        vpn-server - a little script to ask protonVPN API for the fastest server
 # ---------------------------------------------------------------------------------------
 
 ###############################
@@ -23,12 +10,12 @@
 
 function print_help(){
 cat<<EOF
-vpn-server is a tool to get information about ProtonVPN-Servers and give you the fastest one
+vpn-server is a tool to get information about ProtonVPN-Servers and tell you, which is the fastest one
 
 USAGE: 		vpn-server [options]
 
 OPTIONS:
-		-t <type>		select prefered server-type:
+		-t <type>		select prefered type of server
 					  - free
 					  - standard (this is the default value)
 					  - secure
