@@ -1,0 +1,236 @@
+#!/bin/bash
+
+# ---------------------------------------------------------------------------------------
+# little script to ask protonVPN API for the fastest server
+# ---
+#
+# ## want to include ##
+# - argument for number of results
+# - argument for country to check
+# - check for fastest country
+# - check a specific server
+#
+# 
+# TODO 
+# - check if country even is available on pvpn
+# - select country
+# - list number of results
+# ---------------------------------------------------------------------------------------
+
+###############################
+## functions for later usage ##
+###############################
+
+function print_help(){
+cat<<EOF
+vpn-server is a tool to get information about ProtonVPN-Servers and give you the fastest one
+
+USAGE: 		vpn-server [options]
+
+OPTIONS:
+		-t <type>		select prefered server-type:
+					  - free
+					  - standard (this is the default value)
+					  - secure
+					  - tor
+
+	following still in progress, has no effect
+	-------------------------------------------------------------------------------
+		-c <country-code>	select prefered country (2-digit country-code)
+
+		-n <amount>		get this amount of fastest servers as a result
+
+		-s <server>		check only the given server
+	-------------------------------------------------------------------------------
+EOF
+}
+
+function error_message(){
+	echo 'ERROR:'
+	if [[ "$1" == "-t" ]]
+	then
+		what='a type'
+	elif [[ "$1" == "-c" ]]
+	then
+		what='a country'
+	elif [[ "$1" == "-n" ]]
+	then
+		what='an amount'
+	fi
+
+	printf "\t$1 requires choosing $what\n\tsee 'vpn-server --help' for more info\n" >&2
+       	exit 1
+}
+
+function find_best_servers(){
+	for name in $1
+	do
+		temporary_name_list+=("$name")
+	done
+	
+	for score in $2
+	do
+		temporary_score_list+=("$score")
+	done
+	
+	n=${3:-1}
+
+	echo 'extracting best server from list...'
+
+	amount=$(echo ${#temporary_score_list[@]})
+	up_counter=0
+	temp_score=5000
+	until [[ "$up_counter" == "$amount" ]]
+	do
+		if [[ "${temporary_score_list[$up_counter]}" < "$temp_score" ]]
+		then
+			temp_score=${temporary_score_list[$up_counter]}
+			current_best_index=$up_counter
+		fi
+		up_counter=$(($up_counter+1))
+	done
+
+	cat<<EOF
+
+   Best server:
+   -------------
+    ${temporary_name_list[$current_best_index]}
+   -------------
+EOF
+	#echo
+	#echo 'best server is'
+	#echo ---
+	#echo ${temporary_name_list[$current_best_index]}
+	#echo ${temporary_score_list[$current_best_index]}
+	#echo ---
+
+	# you need $n here
+
+	#for i in {1..5}
+	#do
+	#	echo ${name_list[$i]}
+	#	echo ${score_list[$i]}
+	#done
+}
+
+###################################
+## parse and check all arguments ##
+###################################
+
+# parsing all arguments
+loop_rounds=$(bc<<<"scale=0;$#/2+1")
+while (( "$loop_rounds" > 0 ))
+do
+	# types: free, standard, secure, tor
+	if [[ "$1" == "-t" ]]
+	then
+		[ "$2" != "" ] && server_type_input="$2" || error_message "$1"
+	elif [[ "$1" == "-c" ]]
+	then
+		[ "$2" != "" ] && country="$2" || error_message "$1"
+	elif [[ "$1" == "-n" ]]
+	then
+		[ "$2" != "" ] && number_of_results="$2" || error_message "$1"
+#	elif [[ "$1" == "-s" ]]
+#	then
+#		specific_server_input="$2"
+	elif [[ "$1" == "-h" || "$1" == "--help" ]]
+	then
+		print_help
+		exit
+	fi
+	shift 2
+
+	loop_rounds=$((loop_rounds-1))
+done
+
+# detecting correct server type
+if [[ "$country" != "" ]]
+then
+	country_upper="$(echo $country | tr '[:lower:]' '[:upper:]')"
+	parsed_country_code=$(rg -o '[A-Z]{2}' <<< "$country_upper" )
+	if [[ "$country_upper" == "$parsed_country_code" ]]
+	then
+		echo "country: $country_upper"
+	else
+		# TODO insert correct check, if the country is even available
+		echo "wrong country code '$country'" >&2
+		echo "it has to be a 2-digit country-code" >&2
+		exit 1
+	fi
+fi
+
+if [[ "$server_type_input" != "" ]]
+then
+	rg -i '^f' >/dev/null <<< "$server_type_input" && server_type="FREE"
+	rg -i '^st' >/dev/null <<< "$server_type_input" && server_type="STANDARD"
+	rg -i '^se' >/dev/null <<< "$server_type_input" && server_type="SECURE"
+	rg -i '^t' >/dev/null <<< "$server_type_input" && server_type="TOR"
+	if [[ "$server_type" == "" ]]
+	then
+		echo "wrong type '$server_type_input'" >&2
+		echo "available types: free, standard, secure, tor" >&2
+		exit 1
+	else
+		echo "Server Type: $server_type"
+	fi
+else
+	# default value for type
+	server_type="STANDARD"
+fi
+
+[ "$number_of_results" != "" ] && echo "amount of results: $number_of_results" || number_of_results='1' 
+
+#################################
+## the real action starts here ##
+#################################
+
+echo 'retrieving server-list from the ProtonVPN-API...'
+json=$(curl https://api.protonmail.ch/vpn/logicals 2>/dev/null | jq '.LogicalServers[]')
+
+names=$(echo $json | jq '.Name' | tr -d '"')
+scores=$(echo $json | jq '.Score')
+
+for name in $names
+#for name in $(echo $json | jq '.Score')
+do
+	name_list+=("$name")
+done
+
+for score in $scores
+#for score in $(echo $json | jq '.Score')
+do
+	score_list+=("$score")
+done
+number_of_servers=$(echo ${#score_list[@]})
+
+echo "creating list of servers of type $server_type..."
+up_counter=0
+until [[ "$up_counter" == "$number_of_servers" ]]
+do
+	unset is_free is_standard is_secure is_tor
+
+	case $server_type in
+		"FREE")	
+			# extracting free servers
+			[ "$(awk '/FREE/' <<< ${name_list[$up_counter]})" != "" ] && free_server_names+=("${name_list[$up_counter]}") && free_server_scores+=("${score_list[$up_counter]}");;
+		"STANDARD")
+			# extracting standard servers
+			[ "$(awk 'length() >= 4 && length() <= 5' <<< ${name_list[$up_counter]})" != "" ] && standard_server_names+=("${name_list[$up_counter]}") && standard_server_scores+=("${score_list[$up_counter]}");;
+		"SECURE")
+			# extracting secure servers
+			[ "$(awk 'length() >= 7 && length() <= 8' <<< ${name_list[$up_counter]})" != "" ] && secure_server_names+=("${name_list[$up_counter]}") && secure_server_scores+=("${score_list[$up_counter]}");;
+		"TOR")
+			# extracting tor servers
+			[ "$(awk '/TOR/' <<< ${name_list[$up_counter]})" != "" ] && tor_server_names+=("${name_list[$up_counter]}") && tor_server_scores+=("${score_list[$up_counter]}");;
+	esac
+
+	up_counter=$((up_counter+1))
+done
+
+case $server_type in
+	"FREE") find_best_servers "${free_server_names[*]}" "${free_server_scores[*]}";;
+	"STANDARD") find_best_servers "${standard_server_names[*]}" "${standard_server_scores[*]}";;
+	"SECURE") find_best_servers "${secure_server_names[*]}" "${secure_server_scores[*]}";;
+	"TOR") find_best_servers "${tor_server_names[*]}" "${tor_server_scores[*]}";;
+esac
