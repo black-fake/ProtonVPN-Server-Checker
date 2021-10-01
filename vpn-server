@@ -1,8 +1,26 @@
 #!/bin/bash
 
-# ---------------------------------------------------------------------------------------
-#        vpn-server - a little script to ask protonVPN API for the fastest server
-# ---------------------------------------------------------------------------------------
+#===============================================================================
+#
+#          FILE: vpn-server
+#
+#         USAGE: ./vpn-server [options]
+#
+#   DESCRIPTION: a little script to ask protonVPN API for the fastest server
+#
+#       OPTIONS: -t (free|standard|secure|tor)
+#		 -c <country-code>
+#		 -n <amount>
+#		 -s <server>
+#  REQUIREMENTS: curl, jq, awk, ripgrep(rg)
+#          BUGS: ---
+#         NOTES: flags '-c', '-n', '-s' don't work at the moment
+#        AUTHOR: black-fake (),
+#  ORGANIZATION:
+#       CREATED: 30.09.2021 21:55:18
+#      REVISION:  ---
+#
+#===============================================================================
 
 ###############################
 ## functions for later usage ##
